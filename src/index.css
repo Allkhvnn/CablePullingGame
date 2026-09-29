@@ -1,6 +1,22 @@
-body { margin: 0; font-family: system-ui, sans-serif; color: #222; background: #fff; }
+﻿* { box-sizing: border-box; }
+body { margin: 0; font-family: system-ui, sans-serif; color: #222; background: #f7f7f7; line-height: 1.5; }
 main { max-width: 800px; margin: 2rem auto; padding: 0 1rem; }
-fieldset { margin: 1rem 0; }
-label { display: block; margin: .5rem 0; }
-button { margin: .5rem .5rem .5rem 0; padding: .6rem 1rem; cursor: pointer; }
-button:disabled { cursor: default; }
+h1 { font-size: clamp(1.4rem, 4vw, 2rem); }
+.panel { background: white; padding: 1.2rem; border: 1px solid #ccc; border-radius: 8px; }
+fieldset { margin: 1rem 0; border: 1px solid #aaa; }
+label { display: block; margin: .5rem 0; cursor: pointer; }
+.option { padding: .35rem; }
+.bets, .scoreboard, .actions { display: flex; flex-wrap: wrap; gap: 1rem; }
+button { padding: .65rem 1rem; cursor: pointer; font: inherit; }
+button:disabled { cursor: default; opacity: .55; }
+button:focus-visible, input:focus-visible { outline: 3px solid #2165af; outline-offset: 3px; }
+.hint { color: #555; font-size: .9rem; }
+.correct { border-left: 4px solid #26743a; padding-left: .7rem; }
+.countdown { font-size: 4rem; text-align: center; margin: 1rem; }
+.rope-panel { padding: .5rem 1rem; background: white; border: 1px solid #ccc; border-radius: 8px; }
+.rope-labels { display: flex; justify-content: space-between; font-size: .85rem; }
+.rope-track { position: relative; height: 36px; margin: .7rem 0; border-left: 3px solid #333; border-right: 3px solid #333; }
+.rope-track::before { content: ''; position: absolute; top: 16px; left: 0; right: 0; height: 4px; background: #927543; }
+.rope-center { position: absolute; left: 50%; top: 0; height: 36px; border-left: 2px dashed #777; }
+.rope-marker { position: absolute; top: 7px; width: 20px; height: 22px; background: #2165af; transform: translateX(-50%); border: 2px solid white; border-radius: 4px; }
+

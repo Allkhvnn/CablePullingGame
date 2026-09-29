@@ -1,92 +1,61 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+﻿import { useCallback, useReducer } from 'react'
 import { questions } from './data/questions'
 import { chooseBotAction } from './game/bot'
-import { calculateRound, createGame, ROUND_DURATION_MS } from './game/engine'
-import type { Action, AnswerIndex, Bet, Question } from './game/types'
-
-function Round({ question, energy, onAction }: {
-  question: Question; energy: number; onAction: (action: Action) => void
-}) {
-  const [answer, setAnswer] = useState<AnswerIndex | null>(null)
-  const [bet, setBet] = useState<Bet>(1)
-  const [deadline] = useState(() => performance.now() + ROUND_DURATION_MS)
-  const [seconds, setSeconds] = useState(12)
-  const submitted = useRef(false)
-
-  const submit = useCallback((action: Action) => {
-    if (submitted.current) return
-    submitted.current = true
-    // Проверка при клике не позволяет задержке таймера дать лишнее время.
-    onAction(performance.now() >= deadline ? { type: 'timeout' } : action)
-  }, [deadline, onAction])
-
-  useEffect(() => {
-    const timer = window.setInterval(() => {
-      const remaining = Math.max(0, deadline - performance.now())
-      setSeconds(Math.ceil(remaining / 1000))
-      if (remaining === 0) submit({ type: 'timeout' })
-    }, 100)
-    return () => window.clearInterval(timer)
-  }, [deadline, submit])
-
-  return <section>
-    <p role="timer">Осталось: {seconds} сек.</p>
-    <h2>{question.text}</h2>
-    <fieldset>
-      <legend>Выберите ответ</legend>
-      {question.options.map((option, index) => <label key={index}>
-        <input type="radio" name="answer" checked={answer === index}
-          onChange={() => setAnswer(index as AnswerIndex)} /> {option}
-      </label>)}
-    </fieldset>
-    <fieldset>
-      <legend>Ставка энергии</legend>
-      {([1, 2, 3] as const).map(value => <label key={value}>
-        <input type="radio" name="bet" checked={bet === value} disabled={value > energy}
-          onChange={() => setBet(value)} /> {value}
-      </label>)}
-    </fieldset>
-    <button disabled={answer === null || bet > energy}
-      onClick={() => answer !== null && submit({ type: 'answer', answer, bet })}>Подтвердить ответ</button>
-    <button onClick={() => submit({ type: 'rest' })}>Отдохнуть (+3 энергии)</button>
-  </section>
-}
-
-const actionNames = { answer: 'ответ', rest: 'отдых', timeout: 'время истекло' }
+import { MAX_ENERGY, QUESTION_LIMIT, ROUND_DURATION_MS, WIN_POSITION } from './game/engine'
+import { createSession, sessionReducer } from './game/session'
+import type { Action } from './game/types'
+import { Countdown } from './components/Countdown'
+import { QuestionRound } from './components/QuestionRound'
+import { Rope } from './components/Rope'
+import { RoundReview } from './components/RoundReview'
 
 export default function App() {
-  const [game, setGame] = useState(() => createGame(questions))
-  const [started, setStarted] = useState(false)
-  const [match, setMatch] = useState(0)
-  const play = useCallback((action: Action) => {
-    const botAction = chooseBotAction(game.botEnergy, Math.random(), Math.random())
-    // Защита от повторного события одного раунда; updater остаётся чистым.
-    setGame(current => current === game ? calculateRound(current, action, botAction) : current)
-  }, [game])
-
-  function restart() {
-    setGame(createGame(questions))
-    setMatch(current => current + 1)
-    setStarted(true)
-  }
+  const [session, dispatch] = useReducer(sessionReducer, questions, createSession)
+  const { game, phase, matchId } = session
+  const ready = useCallback(() => dispatch({ type: 'ready', matchId }), [matchId])
+  const play = useCallback((player: Action) => {
+    dispatch({
+      type: 'submit', matchId, round: game.roundsPlayed, player,
+      bot: chooseBotAction(game.botEnergy, Math.random(), Math.random()),
+    })
+  }, [matchId, game.roundsPlayed, game.botEnergy])
+  const next = () => dispatch({ type: 'next', matchId, round: game.roundsPlayed })
 
   return <main>
     <h1>Перетягивание каната: Битва знаний</h1>
-    <p>Правильный ответ: +ставка силы, ошибка: −ставка. Ставка списывается в обоих случаях.
-      После ответа: +1 энергии, отдых: +3, пропуск по времени: +1. Максимум — 5.</p>
-    <p>Победа на +10 (вы) или −10 (бот). После 12 вопросов решает положение каната.</p>
-    <p>Энергия: вы — {game.playerEnergy}/5; бот — {game.botEnergy}/5.</p>
-    <p>Канат: <strong>{game.position > 0 ? '+' : ''}{game.position}</strong> (плюс — к вам).</p>
-    <p>Завершено вопросов: {game.roundsPlayed}/12.</p>
-    {game.lastRound && <p role="status">
-      Прошлый раунд: вы — {actionNames[game.lastRound.player.action.type]}, сила {game.lastRound.player.force};
-      бот — {actionNames[game.lastRound.bot.action.type]}, сила {game.lastRound.bot.force}.
-      Сдвиг: {game.lastRound.delta}.
-    </p>}
-    {!started ? <button onClick={() => setStarted(true)}>Начать игру</button>
-      : game.winner !== null ? <h2 role="status">{game.winner === 'draw' ? 'Ничья!' : game.winner === 'player' ? 'Вы победили!' : 'Победил бот!'}</h2>
-        : <Round key={`${match}-${game.roundsPlayed}`} question={game.questions[game.roundsPlayed]!}
-          energy={game.playerEnergy} onAction={play} />}
-    {started && <button onClick={restart}>{game.winner !== null ? 'Реванш' : 'Новая игра'}</button>}
+    {phase === 'start' ? <section className="panel">
+      <h2>Правила</h2>
+      <ul>
+        <li>Вы и бот отвечаете на один вопрос с четырьмя вариантами.</li>
+        <li>В начале у каждого {MAX_ENERGY} энергии. Это же максимум.</li>
+        <li>Выберите ставку 1–3 и ответ, затем нажмите «Подтвердить».</li>
+        <li>Верный ответ даёт +ставка силы, ошибка — −ставка. Энергия ставки списывается в обоих случаях, затем возвращается 1.</li>
+        <li>«Отдохнуть»: 0 силы и +3 энергии, но не выше максимума.</li>
+        <li>На вопрос — {ROUND_DURATION_MS / 1000} секунд. Без подтверждения: 0 силы и +1 энергия, это не отдых.</li>
+        <li>Канат сдвигается на силу игрока минус силу бота.</li>
+        <li>Победа при +{WIN_POSITION}, поражение при −{WIN_POSITION}. После {QUESTION_LIMIT} вопросов решает положение каната; при 0 — ничья.</li>
+      </ul>
+      <p>После каждого раунда можно спокойно прочитать правильный ответ и продолжить по кнопке.</p>
+      <button onClick={() => dispatch({ type: 'start' })}>Начать игру</button>
+    </section> : <>
+      <div className="scoreboard">
+        <p>Ваша энергия: <strong>{game.playerEnergy}/{MAX_ENERGY}</strong></p>
+        <p>Энергия бота: <strong>{game.botEnergy}/{MAX_ENERGY}</strong></p>
+      </div>
+      <Rope position={game.position} />
+      <p>{phase === 'question' ? `Вопрос ${game.roundsPlayed + 1} из ${QUESTION_LIMIT}` : `Завершено вопросов: ${game.roundsPlayed}/${QUESTION_LIMIT}`}</p>
+      {phase === 'countdown' && <Countdown key={matchId} onComplete={ready} />}
+      {phase === 'question' && <QuestionRound key={`${matchId}-${game.roundsPlayed}`}
+        question={game.questions[game.roundsPlayed]!} energy={game.playerEnergy} onAction={play} />}
+      {phase === 'review' && game.lastRound && <RoundReview
+        question={game.questions[game.roundsPlayed - 1]!} result={game.lastRound}
+        finished={game.winner !== null} onNext={next} />}
+      {phase === 'result' && <section className="panel" aria-live="polite">
+        <h2>{game.winner === 'draw' ? 'Ничья!' : game.winner === 'player' ? 'Вы победили!' : 'Победил бот!'}</h2>
+        <p>Матч завершён. Сыграно раундов: {game.roundsPlayed}. Положение каната: {game.position}.</p>
+        <button onClick={() => dispatch({ type: 'rematch' })}>Реванш</button>
+      </section>}
+    </>}
   </main>
 }
+
