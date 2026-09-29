@@ -7,6 +7,8 @@ fieldset { margin: 1rem 0; border: 1px solid #aaa; }
 label { display: block; margin: .5rem 0; cursor: pointer; }
 .option { padding: .35rem; }
 .bets, .scoreboard, .actions { display: flex; flex-wrap: wrap; gap: 1rem; }
+input:not([type='radio']) { display: block; width: 100%; padding: .5rem; font: inherit; }
+details { margin: 1rem 0; }
 button { padding: .65rem 1rem; cursor: pointer; font: inherit; }
 button:disabled { cursor: default; opacity: .55; }
 button:focus-visible, input:focus-visible { outline: 3px solid #2165af; outline-offset: 3px; }

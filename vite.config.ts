@@ -4,6 +4,12 @@ import { defineConfig } from 'vitest/config'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
+  server: {
+    host: '0.0.0.0',
+    proxy: { '/ws': { target: 'ws://127.0.0.1:3001', ws: true }, '/health': 'http://127.0.0.1:3001' },
+    // Банк сетевых вопросов не должен выдаваться даже dev-сервером.
+    fs: { deny: ['server/**', '**/server/**', 'dist-server/**', '**/dist-server/**', '**/.env*', '**/.git/**'] },
+  },
   // Для небольшого набора тестов достаточно одного рабочего процесса.
   test: { maxWorkers: 1 },
 })

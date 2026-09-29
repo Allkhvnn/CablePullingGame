@@ -2,7 +2,7 @@
 import { StrictMode } from 'react'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import App from './App'
+import App from './TrainingApp'
 import { QuestionRound } from './components/QuestionRound'
 import { questions } from './data/questions'
 import { QUESTION_LIMIT, ROUND_DURATION_MS } from './game/engine'
@@ -110,4 +110,5 @@ describe('Матч в React', () => {
     expect(onAction).toHaveBeenCalledTimes(1)
   })
 })
+
 
