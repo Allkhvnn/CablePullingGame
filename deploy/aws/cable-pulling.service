@@ -1,0 +1,22 @@
+[Unit]
+Description=Cable Pulling Game (HTTP + WebSocket)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ec2-user
+Group=ec2-user
+WorkingDirectory=/opt/cable-pulling-game
+Environment=NODE_ENV=production
+Environment=PORT=3001
+ExecStart=/usr/bin/node-24 /opt/cable-pulling-game/dist-server/index.js
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

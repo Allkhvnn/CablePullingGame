@@ -62,3 +62,21 @@ it('после разрыва автоматически делает resume, а
   unmount()
   expect(vi.getTimerCount()).toBe(0)
 })
+
+it('после удаления комнаты сервером возвращает на экран создания', () => {
+  const { result } = renderHook(useRoom)
+  act(() => result.current.create())
+  const first = FakeSocket.instances.at(-1)!
+  act(() => { first.open(); first.receive(identity); first.close() })
+  act(() => vi.advanceTimersByTime(1000))
+  const second = FakeSocket.instances.at(-1)!
+  act(() => second.open())
+  act(() => second.receive({ type: 'error', code: 'NOT_FOUND', message: 'Комната не найдена.' }))
+  expect(result.current.identity).toBeNull()
+  expect(result.current.state).toBeNull()
+  expect(result.current.error).toContain('Комната не найдена')
+  expect(localStorage.getItem('cable-room:room-one')).toBeNull()
+  expect(window.location.search).toBe('')
+  act(() => result.current.create())
+  expect(FakeSocket.instances).toHaveLength(3)
+})

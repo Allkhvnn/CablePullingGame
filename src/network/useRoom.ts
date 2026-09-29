@@ -27,6 +27,7 @@ export function useRoom() {
 
   useEffect(() => {
     if (!entry) return
+    const activeEntry = entry
     let disposed = false
     let blocked = false
     let retry: ReturnType<typeof setTimeout> | undefined
@@ -65,6 +66,18 @@ export function useRoom() {
           if (['NOT_FOUND', 'ROOM_FULL', 'UNAUTHORIZED', 'CAPACITY'].includes(message.code)) {
             blocked = true
             setStatus('offline')
+            // После перезапуска сервера комнаты в памяти исчезают. Показываем
+            // стартовый экран, чтобы можно было создать новую комнату.
+            if (message.code === 'NOT_FOUND' || message.code === 'UNAUTHORIZED') {
+              const roomId = credentials?.roomId ?? (activeEntry.type === 'create' ? null : activeEntry.roomId)
+              if (roomId) {
+                try { localStorage.removeItem(storageKey(roomId)) } catch { /* Нет доступа к хранилищу. */ }
+              }
+              setIdentity(null)
+              setState(null)
+              window.history.replaceState(null, '', '/')
+            }
+            setEntry(null)
             ws.close()
           }
         }
