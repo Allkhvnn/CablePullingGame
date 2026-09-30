@@ -6,9 +6,9 @@
 
 «Бесплатно» зависит от даты регистрации и типа аккаунта. Для **нового Free account plan** AWS даёт начальные кредиты и закрывает бесплатный план через 6 месяцев или после исчерпания кредитов, в зависимости от того, что раньше. После закрытия сервер перестанет работать, пока владелец не перейдёт на платный план. Для старого аккаунта право на EC2 Free Tier могло истечь. Не выбирайте платный план, если не готовы к оплате. Смотрите статус в AWS Console → Billing and Cost Management → Free Tier / Credits.
 
-Выбирайте только тип EC2 с пометкой **Free tier eligible** для вашего аккаунта и региона, один инстанс, один диск `gp3` на 16 ГБ. Для `t3.micro` установите CPU credits **Standard**, чтобы исключить платные всплески Unlimited. Публичный IPv4 и диск тоже входят в расчёт Free Tier или расходуют кредиты — проверьте это в Billing. Сам CloudFront можно оформить на **Free flat-rate plan ($0/месяц)**; он не делает EC2 бесплатным. Не создавайте Load Balancer, NAT Gateway и другие ресурсы для этой схемы.
+Выбирайте только тип EC2 с пометкой **Free tier eligible** для вашего аккаунта и региона, один инстанс, один диск `gp3` на 16 ГБ. Для `t3.micro` установите CPU credits **Standard**, чтобы исключить платные всплески Unlimited. Публичный IPv4 и диск тоже входят в расчёт Free Tier или расходуют кредиты — проверьте это в Billing. Для аккаунта на **AWS Free Tier** CloudFront flat-rate plan, включая Free ($0/месяц), недоступен по правилам AWS. Distribution будет на **Pay-as-you-go**: проверяйте расход кредитов и стоимость в Billing. После завершения AWS Free Tier можно отдельно проверить доступность flat-rate Free plan. Не создавайте Load Balancer, NAT Gateway и другие ресурсы для этой схемы.
 
-Документация AWS: [Free Tier](https://aws.amazon.com/free/free-tier-faqs/), [EC2 Free Tier по дате создания аккаунта](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-free-tier-usage.html), [планы CloudFront](https://aws.amazon.com/cloudfront/pricing/).
+Документация AWS: [Free Tier](https://aws.amazon.com/free/free-tier-faqs/), [EC2 Free Tier по дате создания аккаунта](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-free-tier-usage.html), [ограничения планов CloudFront](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/flat-rate-pricing-plan.html).
 
 ## 1. Запустите EC2
 
@@ -29,7 +29,7 @@ curl -f http://127.0.0.1/health
 
 ## 2. Создайте CloudFront
 
-1. В AWS Console → CloudFront создайте **distribution** и выберите **Free flat-rate plan**, если он доступен аккаунту. В качестве origin выберите **Other / Custom origin** и вставьте `Public IPv4 DNS` EC2 **без** `http://` и пути. Origin protocol: **HTTP only**, port **80**.
+1. В AWS Console → CloudFront создайте **distribution**. Для аккаунта на AWS Free Tier оставьте **Pay-as-you-go**; flat-rate Free plan пока недоступен. В качестве origin выберите **Other / Custom origin** и вставьте `Public IPv4 DNS` EC2 **без** `http://` и пути. Origin protocol: **HTTP only**, port **80**.
 2. Viewer protocol: **Redirect HTTP to HTTPS**. Для default behavior выберите managed cache policy **CachingDisabled** и managed origin request policy **AllViewer**. Эта политика передаёт заголовки WebSocket; кэширование динамического состояния отключено. Дополнительный `path pattern` для `/ws` не нужен — default behavior обслуживает оба вида трафика.
 3. Дождитесь статуса **Deployed**. Откройте выданный адрес вида `https://d123example.cloudfront.net/`. Браузер автоматически будет использовать `wss://d123example.cloudfront.net/ws`.
 
