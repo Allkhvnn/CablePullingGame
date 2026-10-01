@@ -69,7 +69,8 @@ export default function App() {
           <span>{profile.name} · энергия <strong>{game.playerEnergy}/{MAX_ENERGY}</strong></span>
         </div>
         <Rope position={visiblePosition} playerLabel={profile.name} opponentLabel="Бот" playerHero={profile.hero}
-          pulling={phase === 'review' && reviewStep >= 2 && game.lastRound?.delta !== 0} />
+          pulling={phase === 'review' && reviewStep >= 2 && game.lastRound?.delta !== 0}
+          pullDelta={game.lastRound?.delta ?? 0} />
         <p className="arena-footnote">Завершено вопросов: {game.roundsPlayed}/{QUESTION_LIMIT}</p>
       </section>
       {phase === 'countdown' && <Countdown key={matchId} onComplete={ready} />}

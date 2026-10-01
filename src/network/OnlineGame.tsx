@@ -50,6 +50,7 @@ export function OnlineGame() {
   const identity = room.identity
   const playerOne = state?.players.one.profile
   const playerTwo = state?.players.two.profile
+  const revealDelta = state?.reveal?.result.delta ?? 0
   const validProfile = parsePlayerProfile(profile)
   const revealId = state?.reveal ? `${state.matchId}-${state.roundsPlayed}` : null
   const [revealSequence, setRevealSequence] = useState<{ id: string; step: number } | null>(null)
@@ -154,37 +155,24 @@ export function OnlineGame() {
       <div className="match-heading">
         <div>
           <span className="section-kicker">КОМНАТА {identity.roomId.slice(0, 8).toUpperCase()}</span>
-          <h1>{state?.phase === 'waiting' ? 'Матч двух игроков' : `${state?.players[identity.seat].profile?.name ?? 'Вы'} — ${identity.seat === 'one' ? 'справа' : 'слева'}`}</h1>
-          {state?.phase === 'waiting' && <p>Пригласите друга. Ответы откроются одновременно после каждого раунда.</p>}
+          <h1>{state?.phase === 'waiting' ? 'Арена готова' : `${state?.players[identity.seat].profile?.name ?? 'Вы'} — ${identity.seat === 'one' ? 'справа' : 'слева'}`}</h1>
         </div>
-        <span className="phase-badge"><span aria-hidden="true" className="phase-dot" />{phaseLabel}</span>
+        <div className="match-heading__tools">
+          <details className="room-links">
+            <summary>Ссылки на комнату</summary>
+            <div className="room-links__content">
+              <label htmlFor="room-public-link">Приглашение для друга</label>
+              <input id="room-public-link" readOnly value={publicLink} onFocus={e => e.currentTarget.select()} />
+              <button className="button button--secondary" onClick={copyInvite}>{copyState === 'copied' ? 'Скопировано ✓' : 'Копировать приглашение'}</button>
+              <label htmlFor="room-private-link">Личная ссылка для возвращения</label>
+              <input id="room-private-link" readOnly value={publicLink + '#key=' + identity.token} onFocus={e => e.currentTarget.select()} />
+              <p>Личную ссылку сохраните для себя. Другу отправляйте только приглашение.</p>
+            </div>
+          </details>
+          <span className="phase-badge"><span aria-hidden="true" className="phase-dot" />{phaseLabel}</span>
+        </div>
       </div>
-
-      <details className={'panel invite-card' + (state?.phase !== 'waiting' ? ' invite-card--compact' : '')}
-        open={state?.phase === 'waiting'}>
-        <summary>{state?.phase === 'waiting' ? 'Приглашение для второго игрока' : 'Ссылка на комнату и личный ключ'}</summary>
-        <div className="invite-card__intro">
-          <div>
-            <span className="section-kicker">ИГРА С ДРУГОМ</span>
-            <h2>Ссылка-приглашение</h2>
-            <p>Отправьте её второму игроку. Ваше место сохранено на этом устройстве.</p>
-          </div>
-          {state?.phase === 'waiting' && <span className="waiting-chip">Ожидаем соперника</span>}
-        </div>
-        <div className="copy-row">
-          <input aria-label="Ссылка для друга" readOnly value={publicLink}
-            onFocus={e => e.currentTarget.select()} />
-          <button className="button button--primary" onClick={copyInvite}>
-            {copyState === 'copied' ? 'Скопировано ✓' : 'Копировать'}
-          </button>
-        </div>
-        {copyState === 'error' && <p className="inline-error" role="status">Не удалось скопировать. Выделите ссылку в поле и скопируйте вручную.</p>}
-        <details className="private-link"><summary>Личная ссылка для возвращения</summary>
-          <p>Это ключ вашего места. Не отправляйте его сопернику.</p>
-          <input aria-label="Личная ссылка" readOnly value={publicLink + '#key=' + identity.token}
-            onFocus={e => e.currentTarget.select()} />
-        </details>
-      </details>
+      {copyState === 'error' && <p className="inline-error" role="status">Не удалось скопировать автоматически. Откройте «Ссылки на комнату» и скопируйте приглашение вручную.</p>}
 
       {room.status !== 'online' && <p className="notice notice--warning" role="status">
         Связь потеряна. Переподключаемся; ход пока отправить нельзя.
@@ -205,16 +193,22 @@ export function OnlineGame() {
           </div>
           <Rope position={visiblePosition} playerLabel={playerOne?.name ?? 'Игрок 1'} opponentLabel={playerTwo?.name ?? 'Игрок 2'}
             playerHero={playerOne?.hero ?? 'fox'} opponentHero={playerTwo?.hero ?? 'bear'}
-            pulling={state.phase === 'reveal' && revealStep === 2 && state.reveal?.result.delta !== 0} />
+            pulling={state.phase === 'reveal' && revealStep === 2 && revealDelta !== 0}
+            pullDelta={revealDelta} />
+          {state.phase === 'reveal' && revealStep >= 2 && revealDelta !== 0 &&
+            <p className="arena-event" aria-live="polite">Рывок {revealDelta > 0 ? 'вправо' : 'влево'} — {revealDelta > 0 ? playerOne?.name ?? 'игрок 1' : playerTwo?.name ?? 'игрок 2'}!</p>}
           <p className="arena-footnote">Завершено вопросов: {state.roundsPlayed}/{QUESTION_LIMIT}</p>
         </section>
 
         {state.paused && <p className="notice notice--warning" role="status">
           Ожидаем соперника. Матч приостановлен. На возвращение: {Math.max(0, Math.ceil(((state.reconnectDeadline ?? state.serverTime) - state.serverTime) / 1000))} сек.
         </p>}
-        {state.phase === 'waiting' && <section className="panel phase-card">
-          <span className="phase-card__icon" aria-hidden="true">⌛</span>
-          <h2>Ожидаем соперника</h2><p>Скопируйте ссылку выше и отправьте другу. После его входа начнётся отсчёт.</p>
+        {state.phase === 'waiting' && <section className="panel phase-card phase-card--waiting">
+          <div><span className="section-kicker">МАТЧ НАЧНЁТСЯ ВДВОЁМ</span>
+            <h2>Ожидаем соперника</h2><p>Отправьте другу ссылку. Как только он войдёт, начнётся отсчёт.</p></div>
+          <button className="button button--primary button--large" onClick={copyInvite}>
+            {copyState === 'copied' ? 'Ссылка скопирована ✓' : 'Скопировать приглашение'}
+          </button>
         </section>}
         {state.phase === 'countdown' && <section className="panel phase-card" aria-live="polite">
           <span className="section-kicker">СКОРО НАЧНЁМ</span>
