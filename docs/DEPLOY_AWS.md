@@ -39,7 +39,7 @@ curl -f http://127.0.0.1/health
 
 ## Обновления и ограничения
 
-Для автоматического обновления после `git push origin main` выполните разовую [настройку GitHub Actions и AWS Systems Manager](AUTO_DEPLOY.md). Пока она не сделана, можно обновить вручную: после нового коммита в `main` подключитесь к EC2 как `ec2-user` и выполните:
+После нового коммита в `main` подключитесь к EC2 как `ec2-user` и выполните:
 
 ```bash
 bash /opt/cable-pulling-game/deploy/aws/update.sh

@@ -35,8 +35,9 @@ export function QuestionRound({ question, energy, onAction }: {
     }
   }, [submit])
 
-  return <section className="panel">
-    <p role="timer" aria-label="Осталось времени">Осталось: <strong>{seconds}</strong> сек.</p>
+  return <section className="panel training-question">
+    <p className={'timer-pill' + (seconds <= 4 ? ' timer-pill--urgent' : '')}
+      role="timer" aria-label="Осталось времени">⏱ Осталось: <strong>{seconds}</strong> сек.</p>
     <h2>{question.text}</h2>
     <fieldset disabled={locked}>
       <legend>1. Выберите ставку</legend>
@@ -52,12 +53,17 @@ export function QuestionRound({ question, energy, onAction }: {
           onChange={() => setAnswer(index as AnswerIndex)} /> {option}
       </label>)}
     </fieldset>
+    <p className="move-preview" aria-live="polite">
+      {bet === null || answer === null
+        ? 'Выберите ставку и ответ, чтобы подготовить ход.'
+        : `Ваш ход: ставка ${bet} · возможная сила +${bet} или −${bet}. Нажмите «Подтвердить».`}
+    </p>
     <div className="actions">
-      <button disabled={locked || answer === null || bet === null || bet > energy}
+      <button className="button button--primary" disabled={locked || answer === null || bet === null || bet > energy}
         onClick={() => answer !== null && bet !== null && submit({ type: 'answer', answer, bet })}>
         Подтвердить
       </button>
-      <button disabled={locked} onClick={() => submit({ type: 'rest' })}>Отдохнуть</button>
+      <button className="button button--secondary" disabled={locked} onClick={() => submit({ type: 'rest' })}>Отдохнуть</button>
     </div>
     <p className="hint">Ставка списывается при любом ответе. Отдых: +3 энергии. Время истекло: +1 энергия.</p>
   </section>
