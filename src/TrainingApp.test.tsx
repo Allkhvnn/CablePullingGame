@@ -47,7 +47,7 @@ describe('Матч в React', () => {
     expect(screen.queryByRole('button', { name: 'Следующий вопрос' })).toBeNull()
     advance(900)
     expect(screen.getByText(/Верный ответ:/).textContent).toContain('56')
-    expect(screen.getByText('Сила +3')).toBeTruthy()
+    expect(screen.getAllByText('Сила +3').length).toBeGreaterThan(0)
     advance(2300)
     expect(vi.getTimerCount()).toBe(0)
     advance(ROUND_DURATION_MS * 2)

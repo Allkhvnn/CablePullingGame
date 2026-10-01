@@ -12,8 +12,12 @@ import { ProfilePicker } from './components/ProfilePicker'
 import { usePlayerProfile } from './profile'
 import { parsePlayerProfile } from '../shared/protocol'
 import { RoundReview } from './components/RoundReview'
+import { useGameAudio } from './audio/useGameAudio'
+import { SoundToggle } from './audio/SoundToggle'
 
 export default function App() {
+  const audio = useGameAudio()
+  const { unlock, play: playSound, playOnce } = audio
   const [profile, setProfile] = usePlayerProfile()
   const [session, dispatch] = useReducer(sessionReducer, questions, createSession)
   const { game, phase, matchId } = session
@@ -27,19 +31,30 @@ export default function App() {
     return () => { window.clearTimeout(answers); window.clearTimeout(pull); window.clearTimeout(settle) }
   }, [reviewId])
   const reviewStep = reviewSequence?.id === reviewId ? reviewSequence.step : 0
+  useEffect(() => {
+    if (phase === 'review' && reviewStep >= 2 && reviewId) {
+      playOnce('training-pull-' + reviewId, game.lastRound?.delta ? 'pull' : 'draw')
+    }
+  }, [phase, reviewStep, reviewId, game.lastRound?.delta, playOnce])
+  useEffect(() => {
+    if (phase === 'result') playOnce('training-result-' + matchId,
+      game.winner === 'player' ? 'win' : game.winner === 'bot' ? 'lose' : 'draw')
+  }, [phase, matchId, game.winner, playOnce])
   const visiblePosition = phase === 'review' && game.lastRound && reviewStep < 2
     ? game.position - game.lastRound.delta : game.position
   const ready = useCallback(() => dispatch({ type: 'ready', matchId }), [matchId])
   const play = useCallback((player: Action) => {
+    if (player.type !== 'timeout') { unlock(); playSound('submit') }
     dispatch({
       type: 'submit', matchId, round: game.roundsPlayed, player,
       bot: chooseBotAction(game.botEnergy, Math.random(), Math.random()),
     })
-  }, [matchId, game.roundsPlayed, game.botEnergy])
+  }, [matchId, game.roundsPlayed, game.botEnergy, unlock, playSound])
   const next = () => dispatch({ type: 'next', matchId, round: game.roundsPlayed })
 
   return <main className={'training-shell' + (phase !== 'start' ? ' training-shell--playing' : '')}>
-    <span className="section-kicker">ТРЕНИРОВОЧНЫЙ РЕЖИМ</span>
+    <div className="training-heading-row"><span className="section-kicker">ТРЕНИРОВОЧНЫЙ РЕЖИМ</span>
+      <SoundToggle enabled={audio.enabled} onToggle={audio.toggle} /></div>
     <h1>Перетягивание каната: Битва знаний</h1>
     {phase === 'start' ? <div className="training-start">
       <ProfilePicker profile={profile} onChange={setProfile} />
@@ -56,7 +71,7 @@ export default function App() {
         <li>Победа при +{WIN_POSITION}, поражение при −{WIN_POSITION}. После {QUESTION_LIMIT} вопросов решает положение каната; при 0 — ничья.</li>
       </ul>
       <p>После каждого раунда можно спокойно прочитать правильный ответ и продолжить по кнопке.</p>
-      <button disabled={!parsePlayerProfile(profile)} onClick={() => dispatch({ type: 'start' })}>Начать игру</button>
+      <button disabled={!parsePlayerProfile(profile)} onClick={() => { audio.unlock(); dispatch({ type: 'start' }) }}>Начать игру</button>
       </section>
     </div> : <div className={'training-play-layout' + (phase === 'question' ? ' training-play-layout--question' : '')}>
       <section className="arena-panel training-arena" aria-label="Состояние матча">
@@ -70,7 +85,11 @@ export default function App() {
         </div>
         <Rope position={visiblePosition} playerLabel={profile.name} opponentLabel="Бот" playerHero={profile.hero}
           pulling={phase === 'review' && reviewStep >= 2 && game.lastRound?.delta !== 0}
-          pullDelta={game.lastRound?.delta ?? 0} />
+          pullDelta={game.lastRound?.delta ?? 0}
+          leftReaction={phase === 'result' ? (game.winner === 'bot' ? 'celebrate' : game.winner === 'player' ? 'stumble' : null)
+            : phase === 'review' && reviewStep >= 2 ? (game.lastRound?.delta ?? 0) < 0 ? 'celebrate' : (game.lastRound?.delta ?? 0) > 0 ? 'stumble' : null : null}
+          rightReaction={phase === 'result' ? (game.winner === 'player' ? 'celebrate' : game.winner === 'bot' ? 'stumble' : null)
+            : phase === 'review' && reviewStep >= 2 ? (game.lastRound?.delta ?? 0) > 0 ? 'celebrate' : (game.lastRound?.delta ?? 0) < 0 ? 'stumble' : null : null} />
         <p className="arena-footnote">Завершено вопросов: {game.roundsPlayed}/{QUESTION_LIMIT}</p>
       </section>
       {phase === 'countdown' && <Countdown key={matchId} onComplete={ready} />}

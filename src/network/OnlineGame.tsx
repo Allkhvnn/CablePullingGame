@@ -9,6 +9,8 @@ import { usePlayerProfile } from '../profile'
 import { parsePlayerProfile } from '../../shared/protocol'
 import type { ActionResult } from '../game/types'
 import type { HeroId, RoomState, Seat } from '../../shared/protocol'
+import { useGameAudio } from '../audio/useGameAudio'
+import { SoundToggle } from '../audio/SoundToggle'
 
 function describe(result: ActionResult, reveal: NonNullable<RoomState['reveal']>) {
   const action = result.action
@@ -41,6 +43,8 @@ function EnergyCard({ label, hero, energy, own, connected }: {
 }
 
 export function OnlineGame() {
+  const audio = useGameAudio()
+  const { unlock, play: playSound, playOnce } = audio
   const room = useRoom()
   const [profile, setProfile] = usePlayerProfile()
   const [invite, setInvite] = useState(() => new URL(window.location.href).searchParams.get('room') ?? '')
@@ -68,6 +72,22 @@ export function OnlineGame() {
       ? state.remainingMs ?? 0
       : (state.deadline ?? state.serverTime) - state.serverTime) / 1000))
     : 0
+  useEffect(() => {
+    if (state?.phase === 'countdown' && seconds >= 1 && seconds <= 3) {
+      playOnce(`online-tick-${state.matchId}-${seconds}`, 'tick')
+    }
+  }, [state?.phase, state?.matchId, seconds, playOnce])
+  useEffect(() => {
+    if (state?.phase === 'reveal' && revealStep >= 2 && revealId) {
+      playOnce('online-pull-' + revealId, revealDelta ? 'pull' : 'draw')
+    }
+  }, [state?.phase, revealStep, revealId, revealDelta, playOnce])
+  useEffect(() => {
+    if (state?.phase === 'result' && identity) {
+      playOnce('online-result-' + state.matchId,
+        state.winner === 'draw' ? 'draw' : state.winner === identity.seat ? 'win' : 'lose')
+    }
+  }, [state?.phase, state?.matchId, state?.winner, identity, playOnce])
   const opponent: Seat | null = identity ? (identity.seat === 'one' ? 'two' : 'one') : null
   const publicLink = identity ? window.location.origin + '/?room=' + identity.roomId : ''
   const phaseLabel = state?.paused ? 'Пауза' : state?.phase === 'waiting' ? 'Ожидание'
@@ -81,6 +101,7 @@ export function OnlineGame() {
     if (!validProfile) { setFormError('Введите имя до 18 символов и выберите героя.'); return }
     setFormError('')
     setCopyState('idle')
+    unlock()
     room.join(id, validProfile)
   }
   const copyInvite = async () => {
@@ -98,7 +119,8 @@ export function OnlineGame() {
         <span className="brand__mark" aria-hidden="true">⇄</span>
         <span>БИТВА <strong>ЗНАНИЙ</strong></span>
       </a>
-      <span className="mode-badge">ИГРОК ПРОТИВ ИГРОКА</span>
+      <div className="site-header__tools"><span className="mode-badge">ИГРОК ПРОТИВ ИГРОКА</span>
+        <SoundToggle enabled={audio.enabled} onToggle={audio.toggle} /></div>
     </header>
 
     {!identity && <div className="landing-grid">
@@ -118,7 +140,7 @@ export function OnlineGame() {
         </div>
         <button className="button button--light button--large"
           disabled={room.status === 'connecting' || !validProfile}
-          onClick={() => { if (validProfile) { setCopyState('idle'); room.create(validProfile) } }}>Создать комнату <span aria-hidden="true">↗</span></button>
+          onClick={() => { if (validProfile) { unlock(); setCopyState('idle'); room.create(validProfile) } }}>Создать комнату <span aria-hidden="true">↗</span></button>
         <p className="hero-note">Друг откроет вашу ссылку. Матч начнётся, когда оба будут в комнате.</p>
       </section>
       <div className="landing-side">
@@ -194,7 +216,11 @@ export function OnlineGame() {
           <Rope position={visiblePosition} playerLabel={playerOne?.name ?? 'Игрок 1'} opponentLabel={playerTwo?.name ?? 'Игрок 2'}
             playerHero={playerOne?.hero ?? 'fox'} opponentHero={playerTwo?.hero ?? 'bear'}
             pulling={state.phase === 'reveal' && revealStep === 2 && revealDelta !== 0}
-            pullDelta={revealDelta} />
+            pullDelta={revealDelta}
+            leftReaction={state.phase === 'result' ? (state.winner === 'two' ? 'celebrate' : state.winner === 'one' ? 'stumble' : null)
+              : state.phase === 'reveal' && revealStep >= 2 ? revealDelta < 0 ? 'celebrate' : revealDelta > 0 ? 'stumble' : null : null}
+            rightReaction={state.phase === 'result' ? (state.winner === 'one' ? 'celebrate' : state.winner === 'two' ? 'stumble' : null)
+              : state.phase === 'reveal' && revealStep >= 2 ? revealDelta > 0 ? 'celebrate' : revealDelta < 0 ? 'stumble' : null : null} />
           {state.phase === 'reveal' && revealStep >= 2 && revealDelta !== 0 &&
             <p className="arena-event" aria-live="polite">Рывок {revealDelta > 0 ? 'вправо' : 'влево'} — {revealDelta > 0 ? playerOne?.name ?? 'игрок 1' : playerTwo?.name ?? 'игрок 2'}!</p>}
           <p className="arena-footnote">Завершено вопросов: {state.roundsPlayed}/{QUESTION_LIMIT}</p>
@@ -231,7 +257,7 @@ export function OnlineGame() {
             question={state.question} energy={state.players[identity.seat].energy}
             disabled={state.paused || room.status !== 'online' || seconds === 0}
             submitted={state.players[identity.seat].submitted}
-            onAction={action => room.send({ type: 'action', matchId: state.matchId, round: state.round, action })} />}
+            onAction={action => { unlock(); const sent = room.send({ type: 'action', matchId: state.matchId, round: state.round, action }); if (sent) playSound('submit'); return sent }} />}
         </div>}
         {state.reveal && <section className="panel reveal-card" aria-live="polite">
           <div className="reveal-card__heading"><span className="section-kicker">РАУНД {state.roundsPlayed} ЗАВЕРШЁН</span>
