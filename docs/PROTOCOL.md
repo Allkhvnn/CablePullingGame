@@ -5,13 +5,15 @@
 ## Клиент → сервер
 
 ```json
-{ "type": "create" }
-{ "type": "join", "roomId": "идентификатор из приглашения" }
+{ "type": "create", "profile": { "name": "Алия", "hero": "owl" } }
+{ "type": "join", "roomId": "идентификатор из приглашения", "profile": { "name": "Макс", "hero": "cat" } }
 { "type": "resume", "roomId": "идентификатор", "token": "личный 64-символьный hex-ключ" }
 { "type": "action", "matchId": 1, "round": 1, "action": { "type": "answer", "answer": 2, "bet": 3 } }
 { "type": "action", "matchId": 1, "round": 1, "action": { "type": "rest" } }
 { "type": "rematch", "matchId": 1 }
 ```
+
+`profile` задаётся при создании комнаты или первом входе по приглашению: имя до 18 символов (буквы, цифры, пробел, дефис, подчёркивание), герой `fox`, `bear`, `owl` или `cat`. Сервер проверяет и сохраняет выбор за местом игрока. При `resume` и реванше профиль остаётся прежним. Старые клиенты без `profile` получают стандартный профиль.
 
 `answer` — индекс 0–3, `bet` — целое 1–3. Номера раунда и матча начинаются с 1. Клиент не может прислать `timeout`: его назначает сервер. Поля `seat` или `roomId` в `action` не дают полномочий: роль и комната определяются привязкой соединения. Неизвестные дополнительные поля не используются.
 
@@ -34,7 +36,7 @@
 | `serverTime`, `deadline` | Серверное время и срок этапа в миллисекундах Unix; срок может быть `null` |
 | `paused`, `remainingMs` | Пауза и сохранённый остаток времени |
 | `reconnectDeadline` | Ближайший срок возвращения отключённого участника |
-| `players.one`, `players.two` | `occupied`, `connected`, `energy`, `submitted`, `rematch` |
+| `players.one`, `players.two` | `occupied`, `connected`, `energy`, `submitted`, `rematch`, `profile` (`name`, `hero`) |
 | `round`, `roundsPlayed` | Номер текущего/следующего вопроса (до 12) и количество рассчитанных раундов |
 | `position` | Общая позиция; плюс — к игроку 1, минус — к игроку 2 |
 | `question` | Только в фазе `question`: `id`, `text`, четыре `options`; без правильного ответа |

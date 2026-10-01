@@ -8,9 +8,13 @@ import type { Action } from './game/types'
 import { Countdown } from './components/Countdown'
 import { QuestionRound } from './components/QuestionRound'
 import { Rope } from './components/Rope'
+import { ProfilePicker } from './components/ProfilePicker'
+import { usePlayerProfile } from './profile'
+import { parsePlayerProfile } from '../shared/protocol'
 import { RoundReview } from './components/RoundReview'
 
 export default function App() {
+  const [profile, setProfile] = usePlayerProfile()
   const [session, dispatch] = useReducer(sessionReducer, questions, createSession)
   const { game, phase, matchId } = session
   const reviewId = phase === 'review' ? `${matchId}-${game.roundsPlayed}` : null
@@ -37,7 +41,9 @@ export default function App() {
   return <main className={'training-shell' + (phase !== 'start' ? ' training-shell--playing' : '')}>
     <span className="section-kicker">ТРЕНИРОВОЧНЫЙ РЕЖИМ</span>
     <h1>Перетягивание каната: Битва знаний</h1>
-    {phase === 'start' ? <section className="panel">
+    {phase === 'start' ? <div className="training-start">
+      <ProfilePicker profile={profile} onChange={setProfile} />
+      <section className="panel">
       <h2>Правила</h2>
       <ul>
         <li>Вы и бот отвечаете на один вопрос с четырьмя вариантами.</li>
@@ -50,8 +56,9 @@ export default function App() {
         <li>Победа при +{WIN_POSITION}, поражение при −{WIN_POSITION}. После {QUESTION_LIMIT} вопросов решает положение каната; при 0 — ничья.</li>
       </ul>
       <p>После каждого раунда можно спокойно прочитать правильный ответ и продолжить по кнопке.</p>
-      <button onClick={() => dispatch({ type: 'start' })}>Начать игру</button>
-    </section> : <div className={'training-play-layout' + (phase === 'question' ? ' training-play-layout--question' : '')}>
+      <button disabled={!parsePlayerProfile(profile)} onClick={() => dispatch({ type: 'start' })}>Начать игру</button>
+      </section>
+    </div> : <div className={'training-play-layout' + (phase === 'question' ? ' training-play-layout--question' : '')}>
       <section className="arena-panel training-arena" aria-label="Состояние матча">
         <div className="arena-panel__heading">
           <div><span className="section-kicker">ТРЕНИРОВОЧНАЯ АРЕНА</span><h2>Перетяните канат к себе</h2></div>
@@ -59,9 +66,9 @@ export default function App() {
         </div>
         <div className="training-energy">
           <span>Бот · энергия <strong>{game.botEnergy}/{MAX_ENERGY}</strong></span>
-          <span>Вы · энергия <strong>{game.playerEnergy}/{MAX_ENERGY}</strong></span>
+          <span>{profile.name} · энергия <strong>{game.playerEnergy}/{MAX_ENERGY}</strong></span>
         </div>
-        <Rope position={visiblePosition} playerLabel="Вы" opponentLabel="Бот"
+        <Rope position={visiblePosition} playerLabel={profile.name} opponentLabel="Бот" playerHero={profile.hero}
           pulling={phase === 'review' && reviewStep >= 2 && game.lastRound?.delta !== 0} />
         <p className="arena-footnote">Завершено вопросов: {game.roundsPlayed}/{QUESTION_LIMIT}</p>
       </section>

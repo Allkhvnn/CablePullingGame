@@ -21,6 +21,7 @@ class FakeSocket {
   close(code = 1000) { this.readyState = 3; this.onclose?.({ code }) }
 }
 const identity = { type: 'joined' as const, roomId: 'room-one', seat: 'one' as const, token: 'b'.repeat(64) }
+const profile = { name: 'Алия', hero: 'owl' as const }
 beforeEach(() => {
   vi.useFakeTimers()
   vi.stubGlobal('WebSocket', FakeSocket)
@@ -42,9 +43,19 @@ it('личная ссылка работает в StrictMode и сохраняе
   expect(window.location.hash).toBe('')
 })
 
+it('публичное приглашение ждёт выбора персонажа, а вход передаёт профиль', () => {
+  window.history.replaceState(null, '', '/?room=room-one')
+  const { result } = renderHook(useRoom)
+  expect(FakeSocket.instances).toHaveLength(0)
+  act(() => result.current.join('room-one', profile))
+  const socket = FakeSocket.instances.at(-1)!
+  act(() => socket.open())
+  expect(socket.sent).toEqual([{ type: 'join', roomId: 'room-one', profile }])
+})
+
 it('после разрыва автоматически делает resume, а не новый join или повтор хода', () => {
   const { result, unmount } = renderHook(useRoom)
-  act(() => result.current.create())
+  act(() => result.current.create(profile))
   const first = FakeSocket.instances.at(-1)!
   act(() => { first.open(); first.receive(identity) })
   act(() => first.close())
@@ -65,7 +76,7 @@ it('после разрыва автоматически делает resume, а
 
 it('после удаления комнаты сервером возвращает на экран создания', () => {
   const { result } = renderHook(useRoom)
-  act(() => result.current.create())
+  act(() => result.current.create(profile))
   const first = FakeSocket.instances.at(-1)!
   act(() => { first.open(); first.receive(identity); first.close() })
   act(() => vi.advanceTimersByTime(1000))
@@ -77,6 +88,6 @@ it('после удаления комнаты сервером возвраща
   expect(result.current.error).toContain('Комната не найдена')
   expect(localStorage.getItem('cable-room:room-one')).toBeNull()
   expect(window.location.search).toBe('')
-  act(() => result.current.create())
+  act(() => result.current.create(profile))
   expect(FakeSocket.instances).toHaveLength(3)
 })

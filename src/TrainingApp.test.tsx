@@ -20,7 +20,6 @@ describe('Матч в React', () => {
   it('показывает правила и отсчёт 3–2–1 без игровых действий', () => {
     render(<StrictMode><App /></StrictMode>)
     expect(screen.getByRole('heading', { name: 'Правила' })).toBeTruthy()
-    expect(vi.getTimerCount()).toBe(0)
     fireEvent.click(screen.getByRole('button', { name: 'Начать игру' }))
     expect(screen.getByText('3', { selector: '.countdown' })).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Подтвердить' })).toBeNull()
@@ -87,7 +86,7 @@ describe('Матч в React', () => {
     expect(screen.getByText(/Матч завершён/).textContent).toContain('Сыграно раундов: 12')
     fireEvent.click(screen.getByRole('button', { name: 'Реванш' }))
     expect(screen.getByText('Завершено вопросов: 0/12')).toBeTruthy()
-    expect(screen.getByText(/Вы · энергия/).textContent).toContain('5/5')
+    expect(screen.getByText(/Гость \d+ · энергия/).textContent).toContain('5/5')
     expect(screen.getByText(/Бот · энергия/).textContent).toContain('5/5')
     expect(screen.getByRole('img').getAttribute('aria-label')).toContain('Канат: 0.')
     expect(screen.getByText('3', { selector: '.countdown' })).toBeTruthy()

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { ClientMessage, RoomState, Seat, ServerMessage } from '../../shared/protocol'
+import type { ClientMessage, PlayerProfile, RoomState, Seat, ServerMessage } from '../../shared/protocol'
 
 type Entry = Extract<ClientMessage, { type: 'create' | 'join' | 'resume' }>
 interface Identity { roomId: string; seat: Seat; token: string }
@@ -12,7 +12,7 @@ function initialEntry(): Entry | null {
   const privateKey = new URLSearchParams(url.hash.slice(1)).get('key')
   let token = privateKey
   try { token ??= localStorage.getItem(storageKey(roomId)) } catch { /* Доступна также личная ссылка. */ }
-  return token ? { type: 'resume', roomId, token } : { type: 'join', roomId }
+  return token ? { type: 'resume', roomId, token } : null
 }
 
 export function useRoom() {
@@ -109,11 +109,11 @@ export function useRoom() {
     return true
   }, [status])
   return { identity, state, status, error, errorVersion, connectionVersion, send,
-    create: () => setEntry({ type: 'create' }),
-    join: (roomId: string) => {
+    create: (profile: PlayerProfile) => setEntry({ type: 'create', profile }),
+    join: (roomId: string, profile: PlayerProfile) => {
       let token: string | null = null
       try { token = localStorage.getItem(storageKey(roomId)) } catch { /* Возможен вход без хранилища. */ }
-      setEntry(token ? { type: 'resume', roomId, token } : { type: 'join', roomId })
+      setEntry(token ? { type: 'resume', roomId, token } : { type: 'join', roomId, profile })
     },
   }
 }

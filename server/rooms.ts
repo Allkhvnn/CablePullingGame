@@ -2,12 +2,12 @@ import { randomBytes, randomUUID } from 'node:crypto'
 import { calculateRound, createGame, QUESTION_LIMIT, ROUND_DURATION_MS } from '../src/game/engine'
 import type { GameState, Question } from '../src/game/types'
 import { parseClientMessage } from '../shared/protocol'
-import type { PlayerAction, PublicQuestion, RoomState, Seat, ServerMessage } from '../shared/protocol'
+import type { PlayerAction, PlayerProfile, PublicQuestion, RoomState, Seat, ServerMessage } from '../shared/protocol'
 import { COUNTDOWN_MS, RECONNECT_MS, REVEAL_MS, ROOM_RETENTION_MS } from './config'
 import { selectQuestions } from './questions'
 
 export interface Peer { send: (message: ServerMessage) => void; close: () => void }
-interface Player { token: string; peer: Peer | null; disconnectedUntil: number | null; rematch: boolean }
+interface Player { token: string; peer: Peer | null; disconnectedUntil: number | null; rematch: boolean; profile: PlayerProfile }
 interface Room {
   id: string; matchId: number; game: GameState; phase: RoomState['phase']
   players: Record<Seat, Player | null>; actions: Partial<Record<Seat, PlayerAction>>
@@ -71,7 +71,8 @@ export class Rooms {
       if (message.type === 'create') {
         if (this.rooms.size >= 1000) return this.error(peer, 'CAPACITY', 'Сервер заполнен. Попробуйте позже.')
         const room: Room = { id: randomUUID(), matchId: 1, game: createGame(this.questionFactory()),
-          phase: 'waiting', players: { one: { token: randomBytes(32).toString('hex'), peer: null, disconnectedUntil: null, rematch: false }, two: null },
+          phase: 'waiting', players: { one: { token: randomBytes(32).toString('hex'), peer: null, disconnectedUntil: null, rematch: false,
+            profile: message.profile ?? { name: 'Игрок 1', hero: 'fox' } }, two: null },
           actions: {}, deadline: null, remainingMs: null, reason: null, updatedAt: this.now() }
         this.rooms.set(room.id, room)
         this.bind(peer, room, 'one')
@@ -82,7 +83,8 @@ export class Rooms {
       this.advance(room)
       if (message.type === 'join') {
         if (room.players.two || room.phase !== 'waiting') return this.error(peer, 'ROOM_FULL', 'Места заняты. Для возвращения нужен личный ключ участника.')
-        room.players.two = { token: randomBytes(32).toString('hex'), peer: null, disconnectedUntil: null, rematch: false }
+        room.players.two = { token: randomBytes(32).toString('hex'), peer: null, disconnectedUntil: null, rematch: false,
+          profile: message.profile ?? { name: 'Игрок 2', hero: 'bear' } }
         this.bind(peer, room, 'two')
         return
       }
@@ -179,6 +181,7 @@ export class Rooms {
       occupied: room.players[seat] !== null, connected: !!room.players[seat]?.peer,
       energy: seat === 'one' ? game.playerEnergy : game.botEnergy,
       submitted: !!room.actions[seat], rematch: room.players[seat]?.rematch ?? false,
+      profile: room.players[seat]?.profile ?? null,
     })
     const reconnectTimes = seats.flatMap(s => {
       const p = room.players[s]

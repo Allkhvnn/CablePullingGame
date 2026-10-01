@@ -3,8 +3,12 @@ import { useRoom } from './useRoom'
 import { OnlineQuestion } from './OnlineQuestion'
 import { MAX_ENERGY, QUESTION_LIMIT, ROUND_DURATION_MS, WIN_POSITION } from '../game/engine'
 import { Rope } from '../components/Rope'
+import { HeroFigure } from '../components/HeroFigure'
+import { ProfilePicker } from '../components/ProfilePicker'
+import { usePlayerProfile } from '../profile'
+import { parsePlayerProfile } from '../../shared/protocol'
 import type { ActionResult } from '../game/types'
-import type { RoomState, Seat } from '../../shared/protocol'
+import type { HeroId, RoomState, Seat } from '../../shared/protocol'
 
 function describe(result: ActionResult, reveal: NonNullable<RoomState['reveal']>) {
   const action = result.action
@@ -15,12 +19,12 @@ function describe(result: ActionResult, reveal: NonNullable<RoomState['reveal']>
 }
 const forceTone = (force: number) => force > 0 ? ' force-positive' : force < 0 ? ' force-negative' : ' force-neutral'
 
-function EnergyCard({ label, energy, own, connected }: {
-  label: string; energy: number; own: boolean; connected: boolean
+function EnergyCard({ label, hero, energy, own, connected }: {
+  label: string; hero: HeroId; energy: number; own: boolean; connected: boolean
 }) {
   return <div className={'energy-card' + (own ? ' energy-card--own' : '')}>
     <div className="energy-card__top">
-      <span className="energy-card__name">{label} {own && <span className="you-tag">вы</span>}</span>
+      <span className="energy-card__name"><HeroFigure hero={hero} className="energy-card__avatar" />{label} {own && <span className="you-tag">вы</span>}</span>
       <span className={'presence' + (connected ? ' presence--online' : '')}>
         {connected ? 'на связи' : 'не в сети'}
       </span>
@@ -38,11 +42,15 @@ function EnergyCard({ label, energy, own, connected }: {
 
 export function OnlineGame() {
   const room = useRoom()
-  const [invite, setInvite] = useState('')
+  const [profile, setProfile] = usePlayerProfile()
+  const [invite, setInvite] = useState(() => new URL(window.location.href).searchParams.get('room') ?? '')
   const [formError, setFormError] = useState('')
   const [copyState, setCopyState] = useState<'idle' | 'copied' | 'error'>('idle')
   const state = room.state
   const identity = room.identity
+  const playerOne = state?.players.one.profile
+  const playerTwo = state?.players.two.profile
+  const validProfile = parsePlayerProfile(profile)
   const revealId = state?.reveal ? `${state.matchId}-${state.roundsPlayed}` : null
   const [revealSequence, setRevealSequence] = useState<{ id: string; step: number } | null>(null)
   useEffect(() => {
@@ -69,9 +77,10 @@ export function OnlineGame() {
     let id = invite.trim()
     try { if (id.includes('://')) id = new URL(id).searchParams.get('room') ?? '' } catch { id = '' }
     if (!/^[a-zA-Z0-9-]{1,80}$/.test(id)) { setFormError('Вставьте ссылку-приглашение или код комнаты.'); return }
+    if (!validProfile) { setFormError('Введите имя до 18 символов и выберите героя.'); return }
     setFormError('')
     setCopyState('idle')
-    room.join(id)
+    room.join(id, validProfile)
   }
   const copyInvite = async () => {
     try {
@@ -96,17 +105,23 @@ export function OnlineGame() {
         <span className="eyebrow">ОНЛАЙН-ИГРА ДЛЯ ДВОИХ</span>
         <h1>Перетягивание каната.<br /><em>Решают знания.</em></h1>
         <p className="hero-lead">Пригласите друга, отвечайте на одни и те же вопросы и тяните канат к своей стороне.</p>
+        <div className="landing-duel" aria-hidden="true">
+          <HeroFigure hero="bear" className="landing-duel__figure landing-duel__figure--left" />
+          <span className="landing-duel__rope"><i /></span>
+          <HeroFigure hero={profile.hero} className="landing-duel__figure landing-duel__figure--right" />
+        </div>
         <div className="hero-stats">
           <div><strong>{ROUND_DURATION_MS / 1000} сек</strong><span>на ответ</span></div>
           <div><strong>{QUESTION_LIMIT}</strong><span>вопросов</span></div>
           <div><strong>±{WIN_POSITION}</strong><span>границы победы</span></div>
         </div>
         <button className="button button--light button--large"
-          disabled={room.status === 'connecting'}
-          onClick={() => { setCopyState('idle'); room.create() }}>Создать комнату <span aria-hidden="true">↗</span></button>
+          disabled={room.status === 'connecting' || !validProfile}
+          onClick={() => { if (validProfile) { setCopyState('idle'); room.create(validProfile) } }}>Создать комнату <span aria-hidden="true">↗</span></button>
         <p className="hero-note">Друг откроет вашу ссылку. Матч начнётся, когда оба будут в комнате.</p>
       </section>
       <div className="landing-side">
+        <ProfilePicker profile={profile} onChange={setProfile} />
         <section className="panel join-card">
           <span className="section-kicker">УЖЕ ЕСТЬ ПРИГЛАШЕНИЕ?</span>
           <h2>Войти в комнату</h2>
@@ -114,7 +129,7 @@ export function OnlineGame() {
           <div className="join-row">
             <input id="invite-input" value={invite} onChange={e => setInvite(e.target.value)}
               placeholder="Вставьте ссылку друга" onKeyDown={e => { if (e.key === 'Enter') join() }} />
-            <button className="button button--primary" disabled={room.status === 'connecting'} onClick={join}>Войти</button>
+            <button className="button button--primary" disabled={room.status === 'connecting' || !validProfile} onClick={join}>Войти</button>
           </div>
           {formError && <p className="inline-error" role="alert">{formError}</p>}
         </section>
@@ -139,7 +154,7 @@ export function OnlineGame() {
       <div className="match-heading">
         <div>
           <span className="section-kicker">КОМНАТА {identity.roomId.slice(0, 8).toUpperCase()}</span>
-          <h1>{state?.phase === 'waiting' ? 'Матч двух игроков' : `Вы — игрок ${identity.seat === 'one' ? '1, справа' : '2, слева'}`}</h1>
+          <h1>{state?.phase === 'waiting' ? 'Матч двух игроков' : `${state?.players[identity.seat].profile?.name ?? 'Вы'} — ${identity.seat === 'one' ? 'справа' : 'слева'}`}</h1>
           {state?.phase === 'waiting' && <p>Пригласите друга. Ответы откроются одновременно после каждого раунда.</p>}
         </div>
         <span className="phase-badge"><span aria-hidden="true" className="phase-dot" />{phaseLabel}</span>
@@ -182,13 +197,14 @@ export function OnlineGame() {
             <span className="round-chip">Вопрос {Math.min(state.round, QUESTION_LIMIT)} / {QUESTION_LIMIT}</span>
           </div>
           <div className="scoreboard">
-            <EnergyCard label="Игрок 2" energy={state.players.two.energy}
+            <EnergyCard label={playerTwo?.name ?? 'Игрок 2'} hero={playerTwo?.hero ?? 'bear'} energy={state.players.two.energy}
               own={identity.seat === 'two'} connected={state.players.two.connected} />
             <div className="scoreboard__versus" aria-hidden="true">VS</div>
-            <EnergyCard label="Игрок 1" energy={state.players.one.energy}
+            <EnergyCard label={playerOne?.name ?? 'Игрок 1'} hero={playerOne?.hero ?? 'fox'} energy={state.players.one.energy}
               own={identity.seat === 'one'} connected={state.players.one.connected} />
           </div>
-          <Rope position={visiblePosition} playerLabel="Игрок 1" opponentLabel="Игрок 2"
+          <Rope position={visiblePosition} playerLabel={playerOne?.name ?? 'Игрок 1'} opponentLabel={playerTwo?.name ?? 'Игрок 2'}
+            playerHero={playerOne?.hero ?? 'fox'} opponentHero={playerTwo?.hero ?? 'bear'}
             pulling={state.phase === 'reveal' && revealStep === 2 && state.reveal?.result.delta !== 0} />
           <p className="arena-footnote">Завершено вопросов: {state.roundsPlayed}/{QUESTION_LIMIT}</p>
         </section>
@@ -235,9 +251,9 @@ export function OnlineGame() {
           {revealStep >= 1 ? <>
             <p className="correct-answer">Верный ответ: {state.reveal.question.options[state.reveal.correctAnswer]}</p>
             <div className="review-grid">
-              <div className={forceTone(state.reveal.result.bot.force)}><span>ИГРОК 2 · СЛЕВА</span><p>{describe(state.reveal.result.bot, state.reveal)}.</p>
+              <div className={forceTone(state.reveal.result.bot.force)}><span>{(playerTwo?.name ?? 'Игрок 2').toUpperCase()} · СЛЕВА</span><p>{describe(state.reveal.result.bot, state.reveal)}.</p>
                 <strong>Сила {state.reveal.result.bot.force > 0 ? '+' : ''}{state.reveal.result.bot.force}</strong></div>
-              <div className={forceTone(state.reveal.result.player.force)}><span>ИГРОК 1 · СПРАВА</span><p>{describe(state.reveal.result.player, state.reveal)}.</p>
+              <div className={forceTone(state.reveal.result.player.force)}><span>{(playerOne?.name ?? 'Игрок 1').toUpperCase()} · СПРАВА</span><p>{describe(state.reveal.result.player, state.reveal)}.</p>
                 <strong>Сила {state.reveal.result.player.force > 0 ? '+' : ''}{state.reveal.result.player.force}</strong></div>
             </div>
           </> : <p className="reveal-pending">Раунд завершён. Узнаём, кто перетянул канат.</p>}
@@ -260,8 +276,8 @@ export function OnlineGame() {
             onClick={() => room.send({ type: 'rematch', matchId: state.matchId })}>
             {state.players[identity.seat].rematch ? 'Ждём соперника…' : 'Сыграть реванш'}
           </button>
-          <p className="rematch-status">Реванш: игрок 1 — {state.players.one.rematch ? 'готов' : 'ожидаем'};
-            игрок 2 — {state.players.two.rematch ? 'готов' : 'ожидаем'}.</p>
+          <p className="rematch-status">Реванш: {playerOne?.name ?? 'игрок 1'} — {state.players.one.rematch ? 'готов' : 'ожидаем'};
+            {playerTwo?.name ?? 'игрок 2'} — {state.players.two.rematch ? 'готов' : 'ожидаем'}.</p>
           <p className="muted">Новая партия начнётся, когда оба подключены и согласились.</p>
         </section>}
       </div>}

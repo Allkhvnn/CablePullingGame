@@ -1,11 +1,13 @@
 import type { Action, AnswerIndex, Question, RoundResult } from '../src/game/types'
 
 export type Seat = 'one' | 'two'
+export type HeroId = 'fox' | 'bear' | 'owl' | 'cat'
+export interface PlayerProfile { name: string; hero: HeroId }
 export type PublicQuestion = Omit<Question, 'correctAnswer'>
 export type PlayerAction = Exclude<Action, { type: 'timeout' }>
 export type ClientMessage =
-  | { type: 'create' }
-  | { type: 'join'; roomId: string }
+  | { type: 'create'; profile?: PlayerProfile }
+  | { type: 'join'; roomId: string; profile?: PlayerProfile }
   | { type: 'resume'; roomId: string; token: string }
   | { type: 'action'; matchId: number; round: number; action: PlayerAction }
   | { type: 'rematch'; matchId: number }
@@ -19,7 +21,7 @@ export interface RoomState {
   paused: boolean
   remainingMs: number | null
   reconnectDeadline: number | null
-  players: Record<Seat, { occupied: boolean; connected: boolean; energy: number; submitted: boolean; rematch: boolean }>
+  players: Record<Seat, { occupied: boolean; connected: boolean; energy: number; submitted: boolean; rematch: boolean; profile: PlayerProfile | null }>
   roundsPlayed: number
   round: number
   position: number
@@ -35,13 +37,25 @@ export type ServerMessage =
   | { type: 'error'; code: string; message: string }
 
 // WebSocket принимает недоверенный JSON: TypeScript сам по себе его не проверяет.
+export function parsePlayerProfile(value: unknown): PlayerProfile | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const candidate = value as Record<string, unknown>
+  if (typeof candidate.name !== 'string' || typeof candidate.hero !== 'string') return null
+  const name = candidate.name.trim().replace(/\s+/gu, ' ')
+  if (name.length < 1 || name.length > 18 || !/^[\p{L}\p{N}][\p{L}\p{N} _-]*$/u.test(name)) return null
+  if (!(['fox', 'bear', 'owl', 'cat'] as string[]).includes(candidate.hero)) return null
+  return { name, hero: candidate.hero as HeroId }
+}
+
 export function parseClientMessage(value: unknown): ClientMessage | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null
   const v = value as Record<string, unknown>
   const id = (x: unknown): x is string => typeof x === 'string' && /^[a-zA-Z0-9-]{1,80}$/.test(x)
   const number = (x: unknown): x is number => Number.isSafeInteger(x) && (x as number) >= 0
-  if (v.type === 'create') return { type: 'create' }
-  if (v.type === 'join' && id(v.roomId)) return { type: 'join', roomId: v.roomId }
+  const profile = v.profile === undefined ? undefined : parsePlayerProfile(v.profile) ?? undefined
+  if (v.profile !== undefined && !profile) return null
+  if (v.type === 'create') return { type: 'create', profile }
+  if (v.type === 'join' && id(v.roomId)) return { type: 'join', roomId: v.roomId, profile }
   if (v.type === 'resume' && id(v.roomId) && typeof v.token === 'string' && /^[a-f0-9]{64}$/.test(v.token)) {
     return { type: 'resume', roomId: v.roomId, token: v.token }
   }

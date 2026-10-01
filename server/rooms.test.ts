@@ -34,6 +34,23 @@ function fixture(start = true) {
 }
 
 describe('Сервер комнат', () => {
+  it('проверяет профиль на сервере и сохраняет его при возвращении', () => {
+    const rooms = new Rooms(() => 1000, testQuestions)
+    const one = peer(); const two = peer()
+    rooms.receive(one.client, { type: 'create', profile: { name: ' Алия ', hero: 'owl' } })
+    const roomId = one.joined().roomId
+    rooms.receive(two.client, { type: 'join', roomId, profile: { name: 'Макс', hero: 'cat' } })
+    expect(one.state().players.one.profile).toEqual({ name: 'Алия', hero: 'owl' })
+    expect(two.state().players.two.profile).toEqual({ name: 'Макс', hero: 'cat' })
+    rooms.disconnect(one.client)
+    const returned = peer()
+    rooms.receive(returned.client, { type: 'resume', roomId, token: one.joined().token,
+      profile: { name: 'Чужой', hero: 'bear' } })
+    expect(returned.state().players.one.profile).toEqual({ name: 'Алия', hero: 'owl' })
+    const invalid = peer()
+    rooms.receive(invalid.client, { type: 'create', profile: { name: '<script>', hero: 'fox' } })
+    expect(invalid.error().code).toBe('INVALID_MESSAGE')
+  })
   it('начинает только после входа второго; третий участник не занимает место', () => {
     const f = fixture(false)
     expect(f.one.state().phase).toBe('waiting')
@@ -151,6 +168,8 @@ describe('Сервер комнат', () => {
     f.rooms.receive(f.two.client, { type: 'rematch', matchId: 1 })
     expect(f.one.state()).toMatchObject({ phase: 'countdown', matchId: 2, roundsPlayed: 0, position: 0, winner: null, reveal: null })
     expect(f.one.state().players.one.energy).toBe(5)
+    expect(f.one.state().players.one.profile).toEqual({ name: 'Игрок 1', hero: 'fox' })
+    expect(f.one.state().players.two.profile).toEqual({ name: 'Игрок 2', hero: 'bear' })
     f.advance(COUNTDOWN_MS)
     f.action(f.one, { type: 'rest' }, 1, 1)
     expect(f.one.error().code).toBe('STALE_MATCH')
